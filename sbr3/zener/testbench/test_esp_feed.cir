@@ -1,0 +1,53 @@
+
+* Diode SPICE subcircuit
+* Generic diode model with proper SPICE parameters
+*
+* Parameters:
+*   IS - Saturation current (controls forward voltage)
+*   N - Ideality factor (1.0 for ideal diode, higher for real diodes)
+*   RS - Series resistance
+*   CJO - Junction capacitance (optional)
+*
+* Nodes:
+*   1 - Anode
+*   2 - Cathode
+
+* Standard silicon diode - ~0.7V forward voltage
+.SUBCKT D 1 2 PARAMS: IS=1e-14 N=1.0 RS=10m CJO=1p
+D1 1 2 DMODEL
+.MODEL DMODEL D(IS={IS} N={N} RS={RS} CJO={CJO})
+.ENDS D
+
+* Schottky diode variant - ~0.3V forward voltage, higher leakage
+.SUBCKT D_Schottky 1 2 PARAMS: IS=1e-8 N=1.2 RS=5m CJO=2p
+D1 1 2 SCHOTTKY_MODEL
+.MODEL SCHOTTKY_MODEL D(IS={IS} N={N} RS={RS} CJO={CJO})
+.ENDS D_Schottky
+
+* Zener diode variant - includes breakdown behavior
+.SUBCKT D_Zener 1 2 PARAMS: IS=1e-14 N=1.0 RS=10m BV=5.1 IBV=5m CJO=1p
+D1 1 2 ZENER_MODEL
+.MODEL ZENER_MODEL D(IS={IS} N={N} RS={RS} BV={BV} IBV={IBV} CJO={CJO})
+.ENDS D_Zener
+XD1 V5 V5_ESP D_Schottky IS=1e-8 N=1.2 RS=5m CJO=2p
+
+
+* Case A (0-10 ms): buck on (5.0 V), DevKit draws 0.12 A idle, 0.5 A Wi-Fi TX burst at 5 ms.
+* Case B (10-20 ms): buck off (+5V rail = eyes/buzzer/logic, ~25 Ohm), USB powers the DevKit at 5.1 V.
+V_BUCK VB GND PWL(0 5.0 10m 5.0 10.01m 0)
+S_BUCK VB V5 CTRL GND SWBUCK
+V_CTRL CTRL GND PWL(0 1 10m 1 10.01m 0)
+.model SWBUCK SW(RON=0.02 ROFF=1e9 VT=0.5 VH=0.1)
+R_RAIL V5 GND 25
+V_USB VU GND PWL(0 0 10m 0 10.01m 5.1)
+D_USB VU V5_ESP DUSB
+.model DUSB D(IS=1e-6 N=1.05 RS=0.05)
+I_ESP V5_ESP GND PWL(0 0.12 5m 0.12 5.01m 0.5 7m 0.5 7.01m 0.12)
+.control
+  tran 5u 20m
+  meas tran vesp_idle FIND v(V5_ESP) AT=4m
+  meas tran vesp_tx FIND v(V5_ESP) AT=6m
+  meas tran v5rail_usb FIND v(V5) AT=19m
+  let iback = v(V5)/25
+  meas tran iback_usb FIND iback AT=19m
+.endc

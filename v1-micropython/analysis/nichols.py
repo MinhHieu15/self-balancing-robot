@@ -66,5 +66,5 @@ plt.grid(True, linestyle='--', alpha=0.7)
 plt.legend(fontsize=12)
 plt.tight_layout()
 
-plt.savefig('../docs/oscillation_plot.png', dpi=300)
+plt.savefig('../../docs/oscillation_plot.png', dpi=300)
 plt.show()

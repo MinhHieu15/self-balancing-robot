@@ -1,0 +1,30 @@
+"""Indicator LED currents: power LED on +5V (1k) and status LED on IO17 (330R, GPIO at 3.3 V)."""
+load("@stdlib/properties.zen", "Simulation")
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Led = Module("@stdlib/generics/Led.zen")
+
+GND = Ground()
+V5 = Net("V5")
+GPIO = Net("GPIO")
+PWR_LED_A = Net("PWR_LED_A")
+STATUS_LED_A = Net("STATUS_LED_A")
+Resistor(name="PWR_LED_R", value="1k", package="0805", P1=V5, P2=PWR_LED_A)
+Led(name="PWR_LED", color="green", package="0805", A=PWR_LED_A, K=GND)
+Resistor(name="STATUS_R", value="330", package="0805", P1=GPIO, P2=STATUS_LED_A)
+Led(name="STATUS", color="blue", package="0805", A=STATUS_LED_A, K=GND)
+
+Simulation(
+    name="SIM",
+    setup="""
+V_5 V5 GND DC 5
+V_IO GPIO GND DC 3.3
+.control
+  op
+  echo "I_PWR_LED_mA =" $&@v_5[i]
+  let ipwr = -i(V_5)*1000
+  let ists = -i(V_IO)*1000
+  print ipwr ists
+  echo "VF_status =" $&v(STATUS_LED_A)
+.endc
+""",
+)

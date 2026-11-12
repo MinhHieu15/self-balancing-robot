@@ -1,0 +1,5 @@
+scenario,controller,ITAE,max_tilt_deg,settling_time_1deg_s,final_offset_cm
+10° tilt,PID,0.0529,10.02,0.46,18.64
+10° tilt,LQR,0.0717,10.02,0.88,6.01
+push,PID,0.0608,1.23,0.04,8.31
+push,LQR,0.0809,1.25,0.46,6.01

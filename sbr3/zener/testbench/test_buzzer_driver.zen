@@ -1,0 +1,36 @@
+"""IO16 drives the MMBT3904 low-side switch of the 5 V active buzzer: saturation and turn-off kick."""
+load("@stdlib/properties.zen", "Simulation")
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Rectifier = Module("@stdlib/generics/Rectifier.zen")
+MMBT3904 = Module("../components/MMBT3904/MMBT3904.zen")
+
+GND = Ground()
+V5 = Net("V5")
+BUZZER = Net("BUZZER")
+BUZ_B = Net("BUZ_B")
+BUZ_N = Net("BUZ_N")
+MMBT3904(name="BUZZER_Q", B=BUZ_B, C=BUZ_N, E=GND)
+Resistor(name="BUZZER_RB", value="1k", package="0805", P1=BUZZER, P2=BUZ_B)
+Resistor(name="BUZZER_RBE", value="10k", package="0805", P1=BUZ_B, P2=GND)
+Rectifier(name="BUZZER_FLYBACK", package="SOD-123", reverse_voltage="75V", A=BUZ_N, K=V5)
+
+Simulation(
+    name="SIM",
+    setup="""
+V_5V V5 GND DC 5
+* active buzzer: ~30 mA at 5 V with a magnetic transducer coil (worst case 10 mH)
+R_BZ V5 BZ_INT 160
+L_BZ BZ_INT BUZ_N 10m
+* ESP32-S3 GPIO (3.3 V, ~25 Ohm output) beeps for 2 ms
+V_GPIO GP GND PULSE(0 3.3 1m 20n 20n 2m 10m)
+R_GPIO GP BUZZER 25
+.control
+  tran 1u 6m
+  meas tran ib_on FIND i(V_GPIO) AT=2.9m
+  meas tran vce_on FIND v(BUZ_N) AT=2.9m
+  let ic = (5 - v(BUZ_N))/160
+  meas tran vkick_peak MAX v(BUZ_N) FROM=3m TO=4m
+  meas tran vbuz_n_idle FIND v(BUZ_N) AT=0.9m
+.endc
+""",
+)

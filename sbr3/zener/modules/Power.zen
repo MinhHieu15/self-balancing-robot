@@ -1,0 +1,123 @@
+"""
+Power input and 5 V rail.
+
+3S LiPo (9.9-12.6 V) on XT30 -> external rocker switch -> PTC fuse -> P-FET reverse-polarity
+protection -> TVS -> VMOT. MP1584EN buck module makes +5 V; SS34 feeds the DevKit 5V pin.
+"""
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+Led = Module("@stdlib/generics/Led.zen")
+Zener = Module("@stdlib/generics/Zener.zen")
+Tvs = Module("@stdlib/generics/Tvs.zen")
+Rectifier = Module("@stdlib/generics/Rectifier.zen")
+
+XT30 = Module("../components/Conn_01x02/Conn_01x02.zen")
+JstXh4 = Module("../components/Conn_01x04/Conn_01x04.zen")
+Polyfuse = Module("../components/Polyfuse/Polyfuse.zen")
+AO3401A = Module("../components/AO3401A/AO3401A.zen")
+MP1584 = Module("../components/MP1584EN_Module/MP1584EN_Module.zen")
+CapBulk35 = Module("../components/CP_100uF_35V/CP_100uF_35V.zen")
+CapBulk16 = Module("../components/CP_100uF_16V/CP_100uF_16V.zen")
+
+VMOT = io(Power(voltage="9.9V to 12.6V"))
+V5 = io(Power(voltage="5V"))
+V5_ESP = io(Power(voltage="4.5V to 5V"))
+GND = io(Ground)
+VBAT_SENSE = io(Net)
+
+VBAT_IN = Power("VBAT_IN", voltage="9.9V to 12.6V")
+VBAT_SW = Net("VBAT_SW")
+VBAT_F = Net("VBAT_F")
+
+# XT30U-M footprint: pad 1 is "-", pad 2 is "+".
+XT30(name="BATTERY", PIN_1=GND, PIN_2=VBAT_IN)
+
+# Littelfuse 2920L260/33DR: 2.6 A hold (~2.0 A at 50 C), 5 A trip, 33 V / 40 A interrupt (above the 3S pack short-circuit
+# current through pack + wiring). Two NEMA17 through A4988 choppers at <= 1 A per coil draw ~1-1.5 A from the pack.
+Polyfuse(name="FUSE", P1=VBAT_SW, P2=VBAT_F)
+
+# Back-to-back AO3401A pair (SOT-23: 1 G, 2 S, 3 D) with a common source and gate:
+# - RPP_FET: drain on the input, so a reversed pack is blocked by its body diode;
+# - SS_FET: drain on VMOT, its body diode blocks the plug-in inrush the RPP body diode would pass.
+# Soft start: SS_CGS >> SS_CGD so the gate follows the source when the pack is plugged in (Vgs stays
+# near -0.4 V, inside the AO3401A minimum |Vth| of 0.5 V). SS_GATE_R then pulls the gate down and SS_CGD (Miller) limits
+# dV/dt on VMOT to Ig / Cgd ~ (11.6 V / 220k) / 22 nF ~ 2.4 V/ms, so the ~320 uF of VMOT capacitance
+# charges at ~0.8 A instead of a ~46 A spike (testbench/test_power_normal.zen). Vgs(max) is +/-12 V,
+# below a full 3S pack, so the zener clamps Vgs to -10 V. The gate needs ~0.4 s (several x 220k * 0.7 uF)
+# to reach full enhancement; the A4988s stay disabled (MOT_EN_PU) until the firmware enables them.
+VBAT_P = Net("VBAT_P")
+RPP_GATE = Net("RPP_GATE")
+AO3401A(name="RPP_FET", D=VBAT_F, S=VBAT_P, G=RPP_GATE)
+AO3401A(name="SS_FET", D=VMOT, S=VBAT_P, G=RPP_GATE)
+Resistor(name="SS_GATE_R", value="220k", package="0805", P1=RPP_GATE, P2=GND)
+Capacitor(name="SS_CGS", value="680nF", package="0805", voltage="25V", dielectric="X7R", P1=RPP_GATE, P2=VBAT_P)
+Capacitor(name="SS_CGD", value="22nF", package="0805", voltage="50V", dielectric="X7R", P1=RPP_GATE, P2=VMOT)
+# 10 V +/-5 %, >= 300 mW, SOD-123 (e.g. MMSZ5240B); the generic has no MPN field, see docs/BOM_NOTES.md.
+Zener(
+    name="RPP_CLAMP",
+    zener_voltage="10V",
+    package="SOD-123",
+    A=RPP_GATE,
+    K=VBAT_P,
+)
+
+# SMBJ15A: 15 V standoff (> 12.6 V), 24.4 V clamp (< 28 V MP1584, 30 V AO3401A, 35 V A4988).
+# On the common source: behind the reverse-polarity FET, ahead of the soft-start FET.
+Tvs(
+    name="TVS",
+    package="DO-214AA",
+    reverse_standoff_voltage="15V",
+    mpn="SMBJ15A",
+    manufacturer="Littelfuse",
+    A=GND,
+    K=VBAT_P,
+)
+CapBulk35(name="VMOT_BULK", P1=VMOT, P2=GND)
+
+# 12.6 V * 22k / 122k = 2.27 V at full charge, inside the ADC 11 dB range.
+Resistor(name="VBAT_DIV_TOP", value="100k", package="0805", P1=VMOT, P2=VBAT_SENSE)
+Resistor(name="VBAT_DIV_BOT", value="22k", package="0805", P1=VBAT_SENSE, P2=GND)
+Capacitor(name="VBAT_FILT", value="100nF", package="0805", voltage="16V", dielectric="X7R", P1=VBAT_SENSE, P2=GND)
+
+# MP1584EN: 4.5-28 V in, 3 A out. Adjust to 5.0 V before soldering. Input MLCC rated 50 V (TVS clamps VMOT at
+# 24.4 V); output MLCC 25 V so a mis-set trimmer (output up to ~VMOT) does not crack it.
+MP1584(name="BUCK", IN_P=VMOT, IN_N=GND, OUT_P=V5, OUT_N=GND)
+Capacitor(name="BUCK_IN_C", value="10uF", package="1206", voltage="50V", dielectric="X5R", P1=VMOT, P2=GND)
+Capacitor(name="BUCK_IN_HF", value="100nF", package="0805", voltage="50V", dielectric="X7R", P1=VMOT, P2=GND)
+Capacitor(name="BUCK_OUT_C", value="22uF", package="1206", voltage="25V", dielectric="X5R", P1=V5, P2=GND)
+CapBulk16(name="V5_BULK", P1=V5, P2=GND)
+
+# (5 V - 2.0 V) / 1k = 3 mA.
+PWR_LED_A = Net("PWR_LED_A")
+Resistor(name="PWR_LED_R", value="1k", package="0805", P1=V5, P2=PWR_LED_A)
+Led(
+    name="PWR_LED",
+    color="green",
+    package="0805",
+    mpn="150080GS75000",
+    manufacturer="Wurth Elektronik",
+    A=PWR_LED_A,
+    K=GND,
+)
+
+# Metal latching push button with LED ring, wired to one JST-XH 4-pin (same pinout as SBR2.1 J4):
+# 1 switched battery (back from button), 2 LED +, 3 battery + (to button), 4 LED - / GND.
+# The whole robot current (~1-1.5 A) passes through the button contacts.
+# The button LED is a 12-24 V type (built-in resistor), so it runs from VMOT (9.9-12.6 V after the
+# switch, fuse and reverse protection) instead of +5 V, where SBR2.1 left it very dim. Lit = power on;
+# it dims slightly as the pack discharges. 0R by default; fit 100R-150R only for a bare 3 V LED.
+SWLED_A = Net("SWLED_A")
+Resistor(name="SWLED_R", value="0", package="0805", P1=VMOT, P2=SWLED_A)
+JstXh4(name="SWITCH_PANEL", PIN_1=VBAT_SW, PIN_2=SWLED_A, PIN_3=VBAT_IN, PIN_4=GND)
+
+# SS34: keeps USB VBUS on the DevKit from back-feeding +5 V, the buck and the displays.
+Rectifier(
+    name="ESP_FEED",
+    technology="Schottky",
+    package="DO-214AC",
+    reverse_voltage="40V",
+    forward_current="3A",
+    A=V5,
+    K=V5_ESP,
+)

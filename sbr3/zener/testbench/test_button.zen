@@ -1,0 +1,29 @@
+"""User button (IO18): 10k pull-up + 100 nF debounce. Edge times after press/release with contact bounce."""
+load("@stdlib/properties.zen", "Simulation")
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+
+GND = Ground()
+V3V3 = Net("V3V3")
+BUTTON = Net("BUTTON")
+Resistor(name="BUTTON_PU", value="10k", package="0805", P1=V3V3, P2=BUTTON)
+Capacitor(name="BUTTON_C", value="100nF", package="0805", voltage="16V", dielectric="X7R", P1=BUTTON, P2=GND)
+
+Simulation(
+    name="SIM",
+    setup="""
+V_33 V3V3 GND DC 3.3
+* push at 2 ms with 3 bounces of 100 us, release at 20 ms with 3 bounces
+V_SW CTL GND PWL(0 0 2m 0 2.001m 1 2.1m 1 2.101m 0 2.2m 0 2.201m 1 2.3m 1 2.301m 0 2.4m 0 2.401m 1
++ 20m 1 20.001m 0 20.1m 0 20.101m 1 20.2m 1 20.201m 0 30m 0)
+S_BTN BUTTON GND CTL GND SWB
+.model SWB SW(RON=0.1 ROFF=1e9 VT=0.5 VH=0.1)
+.control
+  tran 2u 30m
+  meas tran t_low WHEN v(BUTTON)=0.825 FALL=1
+  meas tran vmax_during_bounce MAX v(BUTTON) FROM=2.11m TO=2.5m
+  meas tran t_high WHEN v(BUTTON)=2.475 RISE=LAST
+  meas tran vmin_release_bounce MIN v(BUTTON) FROM=20.11m TO=20.3m
+.endc
+""",
+)

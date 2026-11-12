@@ -1,0 +1,52 @@
+"""
+One wheel: Pololu A4988 carrier (#1182) and its JST-XH motor connector.
+
+Logic on 3.3 V (VDD 3-5.5 V) so ESP32-S3 outputs meet VIH = 0.7 * VDD. MS1-3 high = 1/16 step,
+matching the firmware's 5500 steps/s. RESET is floating on the carrier, so it is tied to SLEEP.
+"""
+
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+A4988 = Module("../components/A4988_STEPPER_MOTOR_DRIVER_CARRIER/A4988_STEPPER_MOTOR_DRIVER_CARRIER.zen")
+JstXh4 = Module("../components/Conn_01x04/Conn_01x04.zen")
+CapBulk = Module("../components/CP_47uF_35V/CP_47uF_35V.zen")
+
+VMOT = io(Power(voltage="8V to 35V"))
+V3V3 = io(Power(voltage="3V to 5.5V"))
+GND = io(Ground)
+STEP = io(Net)
+DIR = io(Net)
+EN_N = io(Net)
+
+SLEEP_N = Net("SLEEP_N")
+COIL_1A = Net("COIL_1A")
+COIL_1B = Net("COIL_1B")
+COIL_2A = Net("COIL_2A")
+COIL_2B = Net("COIL_2B")
+
+A4988(
+    name="DRIVER",
+    VMOT=VMOT,
+    GND=GND,
+    GND_1=GND,
+    VDD=V3V3,
+    MS1=V3V3,
+    MS2=V3V3,
+    MS3=V3V3,
+    N_ENABLE=EN_N,
+    N_RESET=SLEEP_N,
+    N_SLEEP=SLEEP_N,
+    STEP=STEP,
+    DIR=DIR,
+    P1A=COIL_1A,
+    P1B=COIL_1B,
+    P2A=COIL_2A,
+    P2B=COIL_2B,
+)
+# Same pin order as SBR2.1: 1B, 1A, 2A, 2B (coil 1 on pins 1-2, coil 2 on pins 3-4).
+JstXh4(name="MOTOR", PIN_1=COIL_1B, PIN_2=COIL_1A, PIN_3=COIL_2A, PIN_4=COIL_2B)
+
+# Pololu asks for >= 47 uF electrolytic across VMOT close to the carrier (SMD aluminium, ESR ~0.36 Ohm
+# damps the lead inductance; a ceramic-only bank would ring).
+CapBulk(name="VMOT_BULK", P1=VMOT, P2=GND)
+Capacitor(name="VMOT_HF", value="100nF", package="0805", voltage="50V", dielectric="X7R", P1=VMOT, P2=GND)
+Capacitor(name="VDD_HF", value="100nF", package="0805", voltage="16V", dielectric="X7R", P1=V3V3, P2=GND)

@@ -1,0 +1,45 @@
+
+* Resistor SPICE subcircuit
+* Model with parasitic series inductance and parallel capacitance
+*
+* Equivalent circuit:
+*
+*              ┌── Cp ──┐
+*   1 ── ESL ──┤        ├── 2
+*              └── R ───┘
+*
+* Behavior:
+*   f << SRF: Z ≈ R (purely resistive)
+*   f ~ SRF:  Parallel resonance of L and Cp; impedance peaks for low R,
+*             dips for high R
+*   f >> SRF: Cp dominates (capacitive roll-off)
+*
+* Parameters:
+*   RVAL - Resistance value in ohms
+*   ESL  - Parasitic series inductance (henries)
+*   CP   - Parasitic parallel capacitance (farads)
+
+.SUBCKT R 1 2 PARAMS: RVAL=1k ESL=0.5n CP=0.05p
+L_esl 1 mid {ESL}
+R1 mid 2 {RVAL}
+C_p mid 2 {CP}
+.ENDS R
+XR1 V3V3 SCL R RVAL=4.7k ESL=700p CP=80f
+
+
+V_33 V3V3 GND DC 3.3
+* GY-9250 module pull-up to its own LDO output (~3.3 V), bus capacitance: pins + 3 cm trace + module ~ 60 pF
+R_MOD MOD_33 SCL 10k
+V_MOD MOD_33 GND DC 3.3
+C_BUS SCL GND 60p
+* ESP32-S3 open-drain low at 400 kHz (1.25 us low / 1.25 us released); low windows 1-2.25 us, 3.5-4.75 us, 6-7.25 us ...
+V_CLK CK GND PULSE(0 1 1u 5n 5n 1.25u 2.5u)
+S_OD SCL GND CK GND SWOD
+.model SWOD SW(RON=25 ROFF=1e9 VT=0.5 VH=0.1)
+.control
+  tran 1n 12u
+  meas tran t30 WHEN v(SCL)=0.99 RISE=3
+  meas tran t70 WHEN v(SCL)=2.31 RISE=3
+  meas tran vol MAX v(SCL) FROM=6.2u TO=7.2u
+  meas tran vhigh MIN v(SCL) FROM=5.2u TO=5.95u
+.endc

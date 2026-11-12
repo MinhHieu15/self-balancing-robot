@@ -1,0 +1,29 @@
+"""30 V / 100 us spike on the battery lead (motor kick-back, hot-plug ringing): peak VMOT vs ratings."""
+load("@stdlib/properties.zen", "Simulation")
+PowerInput = Module("PowerInput.zen")
+
+GND = Ground()
+BAT_P = Net("BAT_P")
+VMOT = Net("VMOT")
+VBAT_SENSE = Net("VBAT_SENSE")
+PowerInput(name="PWR", BAT_P=BAT_P, GND=GND, VMOT=VMOT, VBAT_SENSE=VBAT_SENSE)
+
+Simulation(
+    name="SIM",
+    setup="""
+* steady 12.6 V, then a 40 V-open-circuit, 2 Ohm-source spike for 100 us at 10 ms
+V_CELL BRAW GND PWL(0 12.6 10m 12.6 10.001m 40 10.1m 40 10.101m 12.6 20m 12.6)
+R_PACK BRAW BAT_P 2
+I_BUCK VMOT GND 0.3
+.control
+  tran 1u 20m
+  meas tran vmot_peak MAX v(VMOT) FROM=9.9m TO=11m
+  meas tran vsense_peak MAX v(VBAT_SENSE) FROM=9.9m TO=11m
+  let vgs = v(PWR.RPP_GATE)-v(PWR.VBAT_P)
+  meas tran vgs_min MIN vgs FROM=9.9m TO=11m
+  let itvs = (v(VMOT)-0)*0
+  meas tran vbatf_peak MAX v(PWR.VBAT_F) FROM=9.9m TO=11m
+  meas tran vbatp_peak MAX v(PWR.VBAT_P) FROM=9.9m TO=11m
+.endc
+""",
+)

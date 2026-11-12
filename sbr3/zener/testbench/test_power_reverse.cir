@@ -1,0 +1,145 @@
+
+* Capacitor SPICE subcircuit
+* Series RLC model capturing parasitic ESR and ESL
+*
+* Equivalent circuit:
+*
+*   1 ── ESL ── ESR ── C ── 2
+*
+* Behavior:
+*   f < SRF:  Impedance dominated by C (capacitive, |Z| falls with f)
+*   f = SRF:  Impedance minimum at ESR (series resonance of C and ESL)
+*   f > SRF:  Impedance dominated by ESL (inductive, |Z| rises with f)
+*
+* Parameters:
+*   CVAL - Capacitance value in farads
+*   ESR  - Equivalent series resistance (ohms)
+*   ESL  - Equivalent series inductance (henries)
+
+.SUBCKT C 1 2 PARAMS: CVAL=100n ESR=10m ESL=500p
+L_esl 1 mid1 {ESL}
+R_esr mid1 mid2 {ESR}
+C1 mid2 2 {CVAL}
+.ENDS C
+XC1 VMOT GND C CVAL=10u ESR=2m ESL=1n
+XC2 VMOT GND C CVAL=100n ESR=3m ESL=700p
+XC3 VMOT GND C CVAL=100u ESR=160m ESL=1n
+XC4 VMOT GND C CVAL=47u ESR=360m ESL=1n
+XC5 VMOT GND C CVAL=47u ESR=360m ESL=1n
+XC6 PWR.RPP_GATE VMOT C CVAL=22n ESR=3m ESL=700p
+XC7 PWR.RPP_GATE PWR.VBAT_P C CVAL=680n ESR=3m ESL=700p
+XC8 VBAT_SENSE GND C CVAL=100n ESR=3m ESL=700p
+* Diode SPICE subcircuit
+* Generic diode model with proper SPICE parameters
+*
+* Parameters:
+*   IS - Saturation current (controls forward voltage)
+*   N - Ideality factor (1.0 for ideal diode, higher for real diodes)
+*   RS - Series resistance
+*   CJO - Junction capacitance (optional)
+*
+* Nodes:
+*   1 - Anode
+*   2 - Cathode
+
+* Standard silicon diode - ~0.7V forward voltage
+.SUBCKT D 1 2 PARAMS: IS=1e-14 N=1.0 RS=10m CJO=1p
+D1 1 2 DMODEL
+.MODEL DMODEL D(IS={IS} N={N} RS={RS} CJO={CJO})
+.ENDS D
+
+* Schottky diode variant - ~0.3V forward voltage, higher leakage
+.SUBCKT D_Schottky 1 2 PARAMS: IS=1e-8 N=1.2 RS=5m CJO=2p
+D1 1 2 SCHOTTKY_MODEL
+.MODEL SCHOTTKY_MODEL D(IS={IS} N={N} RS={RS} CJO={CJO})
+.ENDS D_Schottky
+
+* Zener diode variant - includes breakdown behavior
+.SUBCKT D_Zener 1 2 PARAMS: IS=1e-14 N=1.0 RS=10m BV=5.1 IBV=5m CJO=1p
+D1 1 2 ZENER_MODEL
+.MODEL ZENER_MODEL D(IS={IS} N={N} RS={RS} BV={BV} IBV={IBV} CJO={CJO})
+.ENDS D_Zener
+XD1 PWR.RPP_GATE PWR.VBAT_P D_Zener IS=1e-14 N=1.0 RS=10m BV=10 IBV=5m CJO=1p
+* TVS Diode SPICE subcircuit
+* Generic TVS diode model using back-to-back zener approach
+*
+* Parameters:
+*   BV - Breakdown/clamping voltage
+*   IBV - Breakdown current
+*   IS - Saturation current
+*   RS - Series resistance
+*
+* Nodes:
+*   1 - Anode
+*   2 - Cathode
+
+* Unidirectional TVS - behaves like a zener diode
+.SUBCKT TVS_Uni 1 2 PARAMS: BV=6.4 IBV=10m IS=1e-14 RS=5m
+D1 1 2 TVS_UNI_MODEL
+.MODEL TVS_UNI_MODEL D(IS={IS} RS={RS} BV={BV} IBV={IBV})
+.ENDS TVS_Uni
+
+* Bidirectional TVS - two anti-series zeners
+.SUBCKT TVS_Bi 1 2 PARAMS: BV=6.4 IBV=10m IS=1e-14 RS=5m
+D1 1 mid TVS_BI_MODEL
+D2 2 mid TVS_BI_MODEL
+.MODEL TVS_BI_MODEL D(IS={IS} RS={RS} BV={BV} IBV={IBV})
+.ENDS TVS_Bi
+XD2 GND PWR.VBAT_P TVS_Uni BV=24.4 IBV=10m IS=1e-14 RS=5m
+* AO3401A behavioural model (not a vendor model): level-1 PMOS sized to the datasheet
+* RDS(on) ~50 mOhm at VGS = -10 V, VGS(th) ~ -0.9 V, plus the drain->source body diode.
+* Limitations: no gate charge / capacitances beyond defaults, no thermal behaviour.
+.subckt AO3401A_BEH D G S
+M1 D G S S PMOD_AO3401A L=1u W=1u
+D1 D S DBODY_AO3401A
+.model PMOD_AO3401A PMOS (LEVEL=1 VTO=-0.9 KP=2.2 LAMBDA=0.01)
+.model DBODY_AO3401A D (IS=1e-12 N=1.2 RS=0.02 BV=30 CJO=300p)
+.ends AO3401A_BEH
+XQ1 PWR.VBAT_F PWR.RPP_GATE PWR.VBAT_P AO3401A_BEH 
+XQ2 VMOT PWR.RPP_GATE PWR.VBAT_P AO3401A_BEH 
+* Resistor SPICE subcircuit
+* Model with parasitic series inductance and parallel capacitance
+*
+* Equivalent circuit:
+*
+*              ┌── Cp ──┐
+*   1 ── ESL ──┤        ├── 2
+*              └── R ───┘
+*
+* Behavior:
+*   f << SRF: Z ≈ R (purely resistive)
+*   f ~ SRF:  Parallel resonance of L and Cp; impedance peaks for low R,
+*             dips for high R
+*   f >> SRF: Cp dominates (capacitive roll-off)
+*
+* Parameters:
+*   RVAL - Resistance value in ohms
+*   ESL  - Parasitic series inductance (henries)
+*   CP   - Parasitic parallel capacitance (farads)
+
+.SUBCKT R 1 2 PARAMS: RVAL=1k ESL=0.5n CP=0.05p
+L_esl 1 mid {ESL}
+R1 mid 2 {RVAL}
+C_p mid 2 {CP}
+.ENDS R
+XR1 PWR.VBAT_SW PWR.VBAT_F R RVAL=80m ESL=2n CP=200f
+XR2 PWR.RPP_GATE GND R RVAL=220k ESL=700p CP=80f
+XR3 BAT_P PWR.VBAT_SW R RVAL=30m ESL=700p CP=80f
+XR4 VBAT_SENSE GND R RVAL=22k ESL=700p CP=80f
+XR5 VMOT VBAT_SENSE R RVAL=100k ESL=700p CP=80f
+
+
+V_CELL BRAW GND PWL(0 0 1m 0 1.01m -12.6)
+R_PACK BRAW BAT_P 0.06
+* loads seen as resistances (an unpowered buck / drivers do not sink current by themselves)
+R_LOAD VMOT GND 40
+.control
+  tran 2u 20m
+  meas tran vmot_rev MIN v(VMOT) FROM=1m TO=20m
+  let ibat = -i(V_CELL)
+  meas tran ibat_rev MAX ibat FROM=1.5m TO=20m
+  meas tran ibat_rev_min MIN ibat FROM=1.5m TO=20m
+  meas tran vsense_rev MIN v(VBAT_SENSE) FROM=1m TO=20m
+  let vgs = v(PWR.RPP_GATE)-v(PWR.VBAT_P)
+  meas tran vgs_rev FIND vgs AT=19m
+.endc

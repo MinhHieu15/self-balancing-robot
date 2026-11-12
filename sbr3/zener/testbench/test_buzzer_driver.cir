@@ -1,0 +1,84 @@
+
+* Diode SPICE subcircuit
+* Generic diode model with proper SPICE parameters
+*
+* Parameters:
+*   IS - Saturation current (controls forward voltage)
+*   N - Ideality factor (1.0 for ideal diode, higher for real diodes)
+*   RS - Series resistance
+*   CJO - Junction capacitance (optional)
+*
+* Nodes:
+*   1 - Anode
+*   2 - Cathode
+
+* Standard silicon diode - ~0.7V forward voltage
+.SUBCKT D 1 2 PARAMS: IS=1e-14 N=1.0 RS=10m CJO=1p
+D1 1 2 DMODEL
+.MODEL DMODEL D(IS={IS} N={N} RS={RS} CJO={CJO})
+.ENDS D
+
+* Schottky diode variant - ~0.3V forward voltage, higher leakage
+.SUBCKT D_Schottky 1 2 PARAMS: IS=1e-8 N=1.2 RS=5m CJO=2p
+D1 1 2 SCHOTTKY_MODEL
+.MODEL SCHOTTKY_MODEL D(IS={IS} N={N} RS={RS} CJO={CJO})
+.ENDS D_Schottky
+
+* Zener diode variant - includes breakdown behavior
+.SUBCKT D_Zener 1 2 PARAMS: IS=1e-14 N=1.0 RS=10m BV=5.1 IBV=5m CJO=1p
+D1 1 2 ZENER_MODEL
+.MODEL ZENER_MODEL D(IS={IS} N={N} RS={RS} BV={BV} IBV={IBV} CJO={CJO})
+.ENDS D_Zener
+XD1 BUZ_N V5 D IS=1e-14 N=1.0 RS=10m CJO=1p
+* MMBT3904 (2N3904 die) Gummel-Poon model, Fairchild/onsemi published parameters.
+.subckt MMBT3904_SUB C B E
+Q1 C B E QMMBT3904
+.model QMMBT3904 NPN (IS=6.734f XTI=3 EG=1.11 VAF=74.03 BF=416.4 NE=1.259 ISE=6.734f IKF=66.78m XTB=1.5
++ BR=.7371 NC=2 ISC=0 IKR=0 RC=1 CJC=3.638p MJC=.3085 VJC=.75 FC=.5 CJE=4.493p MJE=.2593 VJE=.75
++ TR=239.5n TF=301.2p ITF=.4 VTF=4 XTF=2 RB=10)
+.ends MMBT3904_SUB
+XQ1 BUZ_N BUZ_B GND MMBT3904_SUB 
+* Resistor SPICE subcircuit
+* Model with parasitic series inductance and parallel capacitance
+*
+* Equivalent circuit:
+*
+*              ┌── Cp ──┐
+*   1 ── ESL ──┤        ├── 2
+*              └── R ───┘
+*
+* Behavior:
+*   f << SRF: Z ≈ R (purely resistive)
+*   f ~ SRF:  Parallel resonance of L and Cp; impedance peaks for low R,
+*             dips for high R
+*   f >> SRF: Cp dominates (capacitive roll-off)
+*
+* Parameters:
+*   RVAL - Resistance value in ohms
+*   ESL  - Parasitic series inductance (henries)
+*   CP   - Parasitic parallel capacitance (farads)
+
+.SUBCKT R 1 2 PARAMS: RVAL=1k ESL=0.5n CP=0.05p
+L_esl 1 mid {ESL}
+R1 mid 2 {RVAL}
+C_p mid 2 {CP}
+.ENDS R
+XR1 BUZZER BUZ_B R RVAL=1k ESL=700p CP=80f
+XR2 BUZ_B GND R RVAL=10k ESL=700p CP=80f
+
+
+V_5V V5 GND DC 5
+* active buzzer: ~30 mA at 5 V with a magnetic transducer coil (worst case 10 mH)
+R_BZ V5 BZ_INT 160
+L_BZ BZ_INT BUZ_N 10m
+* ESP32-S3 GPIO (3.3 V, ~25 Ohm output) beeps for 2 ms
+V_GPIO GP GND PULSE(0 3.3 1m 20n 20n 2m 10m)
+R_GPIO GP BUZZER 25
+.control
+  tran 1u 6m
+  meas tran ib_on FIND i(V_GPIO) AT=2.9m
+  meas tran vce_on FIND v(BUZ_N) AT=2.9m
+  let ic = (5 - v(BUZ_N))/160
+  meas tran vkick_peak MAX v(BUZ_N) FROM=3m TO=4m
+  meas tran vbuz_n_idle FIND v(BUZ_N) AT=0.9m
+.endc

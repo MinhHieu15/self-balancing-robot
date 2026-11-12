@@ -1,0 +1,30 @@
+"""IMU I2C (SDA/SCL): board 4.7k pull-up in parallel with the GY-9250 on-module 10k, open-drain edges."""
+load("@stdlib/properties.zen", "Simulation")
+Resistor = Module("@stdlib/generics/Resistor.zen")
+
+GND = Ground()
+V3V3 = Net("V3V3")
+SCL = Net("SCL")
+Resistor(name="SCL_PU", value="4.7k", package="0805", P1=V3V3, P2=SCL)
+
+Simulation(
+    name="SIM",
+    setup="""
+V_33 V3V3 GND DC 3.3
+* GY-9250 module pull-up to its own LDO output (~3.3 V), bus capacitance: pins + 3 cm trace + module ~ 60 pF
+R_MOD MOD_33 SCL 10k
+V_MOD MOD_33 GND DC 3.3
+C_BUS SCL GND 60p
+* ESP32-S3 open-drain low at 400 kHz (1.25 us low / 1.25 us released); low windows 1-2.25 us, 3.5-4.75 us, 6-7.25 us ...
+V_CLK CK GND PULSE(0 1 1u 5n 5n 1.25u 2.5u)
+S_OD SCL GND CK GND SWOD
+.model SWOD SW(RON=25 ROFF=1e9 VT=0.5 VH=0.1)
+.control
+  tran 1n 12u
+  meas tran t30 WHEN v(SCL)=0.99 RISE=3
+  meas tran t70 WHEN v(SCL)=2.31 RISE=3
+  meas tran vol MAX v(SCL) FROM=6.2u TO=7.2u
+  meas tran vhigh MIN v(SCL) FROM=5.2u TO=5.95u
+.endc
+""",
+)

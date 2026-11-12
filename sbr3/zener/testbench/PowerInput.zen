@@ -1,0 +1,46 @@
+"""
+Simulation copy of the POWER block input chain (with the back-to-back soft-start FET pair) (modules/Power.zen), same parts and values.
+
+Stand-ins for parts without SPICE models: rocker/push switch -> 30 mOhm, PTC fuse (MF-SM260 class)
+-> 80 mOhm, SMD electrolytics -> capacitor model with their datasheet ESR. The XT30 / JST connectors and
+the buck module are not modelled; the testbench draws the buck and motor current from VMOT.
+"""
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+Zener = Module("@stdlib/generics/Zener.zen")
+Tvs = Module("@stdlib/generics/Tvs.zen")
+AO3401A = Module("../components/AO3401A/AO3401A.zen")
+
+BAT_P = io(Net)
+GND = io(Ground)
+VMOT = io(Net)
+VBAT_SENSE = io(Net)
+
+VBAT_SW = Net("VBAT_SW")
+VBAT_F = Net("VBAT_F")
+RPP_GATE = Net("RPP_GATE")
+
+Resistor(name="SWITCH_R", value="30m", package="0805", P1=BAT_P, P2=VBAT_SW)
+Resistor(name="FUSE_R", value="80m", package="2512", P1=VBAT_SW, P2=VBAT_F)
+
+VBAT_P = Net("VBAT_P")
+AO3401A(name="RPP_FET", D=VBAT_F, S=VBAT_P, G=RPP_GATE)
+AO3401A(name="SS_FET", D=VMOT, S=VBAT_P, G=RPP_GATE)
+Resistor(name="SS_GATE_R", value="220k", package="0805", P1=RPP_GATE, P2=GND)
+Capacitor(name="SS_CGS", value="680nF", package="0805", voltage="25V", dielectric="X7R", P1=RPP_GATE, P2=VBAT_P)
+Capacitor(name="SS_CGD", value="22nF", package="0805", voltage="50V", dielectric="X7R", P1=RPP_GATE, P2=VMOT)
+Zener(name="RPP_CLAMP", zener_voltage="10V", package="SOD-123", A=RPP_GATE, K=VBAT_P)
+
+Tvs(name="TVS", package="DO-214AA", reverse_standoff_voltage="15V", reverse_clamping_voltage="24.4V", A=GND, K=VBAT_P)
+
+# VMOT_BULK (EEE-FK1V101P 100 uF, ~0.16 Ohm) + one EEE-FK1V470P 47 uF (~0.36 Ohm) per A4988
+Capacitor(name="BULK0", value="100uF", package="1210", voltage="35V", esr="0.16", P1=VMOT, P2=GND)
+for i in (1, 2):
+    Capacitor(name="BULK%d" % i, value="47uF", package="1210", voltage="35V", esr="0.36", P1=VMOT, P2=GND)
+Capacitor(name="BUCK_IN_C", value="10uF", package="1206", voltage="50V", dielectric="X5R", P1=VMOT, P2=GND)
+Capacitor(name="BUCK_IN_HF", value="100nF", package="0805", voltage="50V", dielectric="X7R", P1=VMOT, P2=GND)
+
+Resistor(name="VBAT_DIV_TOP", value="100k", package="0805", P1=VMOT, P2=VBAT_SENSE)
+Resistor(name="VBAT_DIV_BOT", value="22k", package="0805", P1=VBAT_SENSE, P2=GND)
+Capacitor(name="VBAT_FILT", value="100nF", package="0805", voltage="16V", dielectric="X7R", P1=VBAT_SENSE, P2=GND)

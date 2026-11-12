@@ -1,0 +1,34 @@
+"""
+GY-9250 (MPU-9250) IMU module on I2C.
+
+Module header: VCC, GND, SCL, SDA, EDA, ECL, AD0, INT, NCS, FSYNC. The module has its own 3.3 V LDO
+and pull-ups; external 4.7k keep the bus edges fast with the ESP32-S3 internal pull-ups disabled.
+NCS high selects I2C, AD0 low gives address 0x68, FSYNC unused.
+"""
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+GY9250 = Module("../components/GY-9250/GY-9250.zen")
+
+V3V3 = io(Power(voltage="3.3V"))
+GND = io(Ground)
+SDA = io(Net)
+SCL = io(Net)
+INT = io(Net)
+
+GY9250(
+    name="IMU",
+    VCC=V3V3,
+    GND=GND,
+    SCL=SCL,
+    SDA=SDA,
+    AD0=GND,
+    INT=INT,
+    NCS=V3V3,
+    FSYNC=GND,
+    EDA=NotConnected(),
+    ECL=NotConnected(),
+)
+Resistor(name="SCL_PU", value="4.7k", package="0805", P1=V3V3, P2=SCL)
+Resistor(name="SDA_PU", value="4.7k", package="0805", P1=V3V3, P2=SDA)
+Capacitor(name="VCC_HF", value="100nF", package="0805", voltage="16V", dielectric="X7R", P1=V3V3, P2=GND)

@@ -1,0 +1,164 @@
+"""
+SBR3 - Self Balancing Robot main board (redesign of SBR2.1)
+
+ESP32-S3-DevKitC-1, 2x A4988 stepper drivers, MPU-9250 IMU (GY-9250), two MAX7219 8x8 "eye" modules,
+3S LiPo 12 V 1100 mAh input and MP1584EN buck to 5 V. Each block is its own schematic sheet.
+"""
+
+load(
+    "@stdlib/board_config.zen",
+    "BoardConfig",
+    "DesignRules",
+    "Constraints",
+    "Copper",
+    "Holes",
+    "Uvias",
+    "Silkscreen",
+    "SolderMask",
+    "Zones",
+    "PredefinedSizes",
+    "ViaDimension",
+    "NetClass",
+)
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+MountingHole = Module("@stdlib/generics/MountingHole.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+Power_ = Module("modules/Power.zen")
+Mcu = Module("modules/Mcu.zen")
+Stepper = Module("modules/Stepper.zen")
+Imu = Module("modules/Imu.zen")
+Eyes = Module("modules/Eyes.zen")
+Ui = Module("modules/Ui.zen")
+
+GND = Ground()
+VMOT = Power("VMOT", voltage="9.9V to 12.6V")
+V5 = Power("+5V", voltage="5V")
+V5_ESP = Power("+5V_ESP", voltage="4.5V to 5V")
+V3V3 = Power("+3V3", voltage="3.3V")
+
+VBAT_SENSE = Net("VBAT_SENSE")
+M1_STEP = Net("M1_STEP")
+M1_DIR = Net("M1_DIR")
+M2_STEP = Net("M2_STEP")
+M2_DIR = Net("M2_DIR")
+MOT_EN_N = Net("MOT_EN_N")
+SDA = Net("SDA")
+SCL = Net("SCL")
+IMU_INT = Net("IMU_INT")
+MAX_DIN = Net("MAX_DIN_3V3")
+MAX_CLK = Net("MAX_CLK_3V3")
+MAX_CS_L = Net("MAX_CS_L_3V3")
+MAX_CS_R = Net("MAX_CS_R_3V3")
+BUZZER = Net("BUZZER")
+STATUS_LED = Net("STATUS_LED")
+BUTTON = Net("BUTTON")
+
+Power_(name="POWER", VMOT=VMOT, V5=V5, V5_ESP=V5_ESP, GND=GND, VBAT_SENSE=VBAT_SENSE)
+
+Mcu(
+    name="MCU",
+    V5_ESP=V5_ESP,
+    V3V3=V3V3,
+    GND=GND,
+    VBAT_SENSE=VBAT_SENSE,
+    M1_STEP=M1_STEP,
+    M1_DIR=M1_DIR,
+    M2_STEP=M2_STEP,
+    M2_DIR=M2_DIR,
+    MOT_EN_N=MOT_EN_N,
+    SDA=SDA,
+    SCL=SCL,
+    IMU_INT=IMU_INT,
+    MAX_DIN=MAX_DIN,
+    MAX_CLK=MAX_CLK,
+    MAX_CS_L=MAX_CS_L,
+    MAX_CS_R=MAX_CS_R,
+    BUZZER=BUZZER,
+    STATUS_LED=STATUS_LED,
+    BUTTON=BUTTON,
+)
+
+# Shared ENABLE pulled high: both drivers stay off until the firmware drives MOT_EN_N low.
+Resistor(name="MOT_EN_PU", value="10k", package="0805", P1=V3V3, P2=MOT_EN_N)
+Stepper(name="MOTOR_LEFT", VMOT=VMOT, V3V3=V3V3, GND=GND, STEP=M1_STEP, DIR=M1_DIR, EN_N=MOT_EN_N)
+Stepper(name="MOTOR_RIGHT", VMOT=VMOT, V3V3=V3V3, GND=GND, STEP=M2_STEP, DIR=M2_DIR, EN_N=MOT_EN_N)
+
+Imu(name="IMU", V3V3=V3V3, GND=GND, SDA=SDA, SCL=SCL, INT=IMU_INT)
+
+Eyes(
+    name="EYES",
+    V5=V5,
+    V3V3=V3V3,
+    GND=GND,
+    DIN_3V3=MAX_DIN,
+    CLK_3V3=MAX_CLK,
+    CS_L_3V3=MAX_CS_L,
+    CS_R_3V3=MAX_CS_R,
+)
+
+Ui(name="UI", V5=V5, V3V3=V3V3, GND=GND, STATUS_LED=STATUS_LED, BUTTON=BUTTON, BUZZER=BUZZER)
+
+# Probe pads for bring-up (bottom side).
+for tp_name, tp_net in (
+    ("TP_VMOT", VMOT),
+    ("TP_5V", V5),
+    ("TP_3V3", V3V3),
+    ("TP_GND", GND),
+    ("TP_VBAT_SENSE", VBAT_SENSE),
+):
+    TestPoint(name=tp_name, variant="Pad_D1.5mm", P1=tp_net)
+
+for i in range(1, 5):
+    MountingHole(name="MOUNT_%d" % i, diameter="M3", plating="Mechanical")
+
+Board(
+    name="SBR2.1",
+    path="eda",
+    schematic=True,
+    layers=2,
+    config=BoardConfig(
+        design_rules=DesignRules(
+            constraints=Constraints(
+                copper=Copper(
+                    minimum_clearance=0.0,
+                    minimum_track_width=0.0,
+                    minimum_connection_width=0.0,
+                    minimum_annular_width=0.1,
+                    minimum_via_diameter=0.5,
+                    copper_to_hole_clearance=0.25,
+                    copper_to_edge_clearance=0.5,
+                ),
+                holes=Holes(minimum_through_hole=0.3, hole_to_hole_clearance=0.25),
+                uvias=Uvias(minimum_uvia_diameter=0.2, minimum_uvia_hole=0.1),
+                silkscreen=Silkscreen(minimum_item_clearance=0.0, minimum_text_height=0.8),
+                solder_mask=SolderMask(to_copper_clearance=0.0),
+                zones=Zones(minimum_clearance=0.0),
+            ),
+            predefined_sizes=PredefinedSizes(
+                track_widths=[0.2, 0.5, 1.0, 2.0], via_dimensions=[ViaDimension(diameter=0.6, drill=0.3)]
+            ),
+            netclasses=[
+                NetClass(
+                    name="Default",
+                    clearance=0.2,
+                    track_width=0.2,
+                    via_diameter=0.6,
+                    via_drill=0.3,
+                    microvia_diameter=0.3,
+                    microvia_drill=0.1,
+                    diff_pair_width=0.2,
+                    diff_pair_gap=0.25,
+                    diff_pair_via_gap=0.25,
+                ),
+                # Battery and VMOT: up to ~1.5 A with both motors stalled (1.0 mm, 1 oz: ~2.5 A at +10 C).
+                NetClass(name="Power", clearance=0.25, track_width=1.0, via_diameter=1.0, via_drill=0.5),
+                # Stepper coils (A4988 current limit <= 1 A).
+                NetClass(name="Motor", clearance=0.25, track_width=0.6, via_diameter=0.8, via_drill=0.4),
+                # +5 V / GND distribution (< 0.7 A total; GND is mostly carried by the pours). 0.4 mm (~1.2 A)
+                # still fits between 2.54 mm header pins, so +5 V can cross the ESP32 DevKit rows.
+                NetClass(name="Supply", clearance=0.2, track_width=0.4, via_diameter=0.8, via_drill=0.4),
+            ],
+        ),
+    ),
+)

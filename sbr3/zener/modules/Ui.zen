@@ -1,0 +1,52 @@
+"""
+User interface: status LED, push button, active buzzer.
+"""
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+Led = Module("@stdlib/generics/Led.zen")
+Rectifier = Module("@stdlib/generics/Rectifier.zen")
+MMBT3904 = Module("../components/MMBT3904/MMBT3904.zen")
+Buzzer = Module("../components/Buzzer/Buzzer.zen")
+SwPush = Module("../components/SW_Push/SW_Push.zen")
+
+V5 = io(Power(voltage="5V"))
+V3V3 = io(Power(voltage="3.3V"))
+GND = io(Ground)
+STATUS_LED = io(Net)
+BUTTON = io(Net)
+BUZZER = io(Net)
+
+# (3.3 V - 2.8 V) / 330 = 1.5 mA, enough for a blue indicator.
+STATUS_LED_A = Net("STATUS_LED_A")
+Resistor(name="STATUS_R", value="330", package="0805", P1=STATUS_LED, P2=STATUS_LED_A)
+Led(
+    name="STATUS",
+    color="blue",
+    package="0805",
+    mpn="150080BS75000",
+    manufacturer="Wurth Elektronik",
+    A=STATUS_LED_A,
+    K=GND,
+)
+
+# Active low, RC debounce (10k * 100nF = 1 ms).
+SwPush(name="BUTTON_SW", P1=BUTTON, P2=GND)
+Resistor(name="BUTTON_PU", value="10k", package="0805", P1=V3V3, P2=BUTTON)
+Capacitor(name="BUTTON_C", value="100nF", package="0805", voltage="16V", dielectric="X7R", P1=BUTTON, P2=GND)
+
+# Active 5 V buzzer (~30 mA) on an MMBT3904 low-side switch (SOT-23: 1 B, 2 E, 3 C).
+# Ib = (3.3 V - 0.7 V) / 1k = 2.6 mA, beta >= 30 -> saturated. 1N4148W catches the coil kick.
+BUZ_N = Net("BUZ_N")
+BUZ_B = Net("BUZ_B")
+Buzzer(name="BUZZER", P=V5, N=BUZ_N)
+MMBT3904(name="BUZZER_Q", B=BUZ_B, C=BUZ_N, E=GND)
+Resistor(name="BUZZER_RB", value="1k", package="0805", P1=BUZZER, P2=BUZ_B)
+Resistor(name="BUZZER_RBE", value="10k", package="0805", P1=BUZ_B, P2=GND)
+Rectifier(
+    name="BUZZER_FLYBACK",
+    package="SOD-123",
+    reverse_voltage="75V",
+    A=BUZ_N,
+    K=V5,
+)

@@ -1,0 +1,25 @@
+"""Battery-voltage divider transfer (ADC1_CH0 on IO1) across the whole 3S range and beyond."""
+load("@stdlib/properties.zen", "Simulation")
+PowerInput = Module("PowerInput.zen")
+
+GND = Ground()
+BAT_P = Net("BAT_P")
+VMOT = Net("VMOT")
+VBAT_SENSE = Net("VBAT_SENSE")
+PowerInput(name="PWR", BAT_P=BAT_P, GND=GND, VMOT=VMOT, VBAT_SENSE=VBAT_SENSE)
+
+Simulation(
+    name="SIM",
+    setup="""
+V_CELL BAT_P GND DC 12
+R_LOAD VMOT GND 100
+.control
+  dc V_CELL 6 18 0.1
+  meas dc vs_at_9v9 FIND v(VBAT_SENSE) AT=9.9
+  meas dc vs_at_11v1 FIND v(VBAT_SENSE) AT=11.1
+  meas dc vs_at_12v6 FIND v(VBAT_SENSE) AT=12.6
+  meas dc vbat_for_3v1 WHEN v(VBAT_SENSE)=3.1
+  meas dc vmot_at_12v6 FIND v(VMOT) AT=12.6
+.endc
+""",
+)

@@ -1,0 +1,79 @@
+"""
+ESP32-S3-DevKitC-1 v1.1 and its pin assignment.
+
+Avoided: strapping GPIO0/3/45/46, USB GPIO19/20, UART0 GPIO43/44, octal flash/PSRAM GPIO35-37,
+RGB LED GPIO38 (v1.1) / GPIO48 (v1.0).
+"""
+
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+ESP32_S3 = Module("../components/ESP32-S3-DevKitC-1/ESP32-S3-DevKitC-1.zen")
+
+V5_ESP = io(Power(voltage="4.5V to 5V"))
+V3V3 = io(Power(voltage="3.3V"))
+GND = io(Ground)
+VBAT_SENSE = io(Net)
+M1_STEP = io(Net)
+M1_DIR = io(Net)
+M2_STEP = io(Net)
+M2_DIR = io(Net)
+MOT_EN_N = io(Net)
+SDA = io(Net)
+SCL = io(Net)
+IMU_INT = io(Net)
+MAX_DIN = io(Net)
+MAX_CLK = io(Net)
+MAX_CS_L = io(Net)
+MAX_CS_R = io(Net)
+BUZZER = io(Net)
+STATUS_LED = io(Net)
+BUTTON = io(Net)
+
+ESP32_S3(
+    name="DEVKIT",
+    P3V3=V3V3,
+    P3V3_2=V3V3,
+    P5V=V5_ESP,
+    GND=GND,
+    GND_2=GND,
+    GND_3=GND,
+    GND_4=GND,
+    IO1=VBAT_SENSE,
+    IO4=M1_STEP,
+    IO5=M1_DIR,
+    IO6=M2_STEP,
+    IO7=M2_DIR,
+    IO15=MOT_EN_N,
+    IO8=SDA,
+    IO9=SCL,
+    IO10=IMU_INT,
+    IO11=MAX_DIN,
+    IO12=MAX_CLK,
+    IO13=MAX_CS_L,
+    IO14=MAX_CS_R,
+    IO16=BUZZER,
+    IO17=STATUS_LED,
+    IO18=BUTTON,
+    RST=NotConnected(),
+    IO3=NotConnected(),
+    IO46=NotConnected(),
+    TX=NotConnected(),
+    RX=NotConnected(),
+    IO2=NotConnected(),
+    IO42=NotConnected(),
+    IO41=NotConnected(),
+    IO40=NotConnected(),
+    IO39=NotConnected(),
+    IO38=NotConnected(),
+    IO37=NotConnected(),
+    IO36=NotConnected(),
+    IO35=NotConnected(),
+    IO0=NotConnected(),
+    IO45=NotConnected(),
+    IO48=NotConnected(),
+    IO47=NotConnected(),
+    IO21=NotConnected(),
+    IO20=NotConnected(),
+    IO19=NotConnected(),
+)
+Capacitor(name="V3V3_BULK", value="10uF", package="0805", voltage="10V", dielectric="X5R", P1=V3V3, P2=GND)
+Capacitor(name="V3V3_HF", value="100nF", package="0805", voltage="16V", dielectric="X7R", P1=V3V3, P2=GND)

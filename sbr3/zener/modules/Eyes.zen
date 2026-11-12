@@ -1,0 +1,53 @@
+"""
+Two MAX7219 8x8 matrix modules (FC-16 style), one per eye.
+
+MAX7219 at 5 V needs VIH >= 3.5 V, so a 74AHCT125 (TTL inputs, VIH 2.0 V) lifts the 3.3 V SPI to 5 V.
+DIN and CLK are shared; each eye has its own CS. Module input header: VCC, GND, DIN, CS, CLK.
+"""
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+AHCT125 = Module("../components/74AHCT125/74AHCT125.zen")
+Max7219Header = Module("../components/Conn_01x05/Conn_01x05.zen")
+
+V5 = io(Power(voltage="5V"))
+V3V3 = io(Power(voltage="3.3V"))
+GND = io(Ground)
+DIN_3V3 = io(Net)
+CLK_3V3 = io(Net)
+CS_L_3V3 = io(Net)
+CS_R_3V3 = io(Net)
+
+DIN = Net("DIN")
+CLK = Net("CLK")
+CS_L = Net("CS_L")
+CS_R = Net("CS_R")
+
+# SN74AHCT125 SOIC-14: 1/4/10/13 OE#, 2/5/9/12 A, 3/6/8/11 Y, 7 GND, 14 VCC.
+AHCT125(
+    name="LEVEL_SHIFT",
+    VCC=V5,
+    GND=GND,
+    N_OE1=GND,
+    N_OE2=GND,
+    N_OE3=GND,
+    N_OE4=GND,
+    A1=DIN_3V3,
+    Y1=DIN,
+    A2=CLK_3V3,
+    Y2=CLK,
+    A3=CS_L_3V3,
+    Y3=CS_L,
+    A4=CS_R_3V3,
+    Y4=CS_R,
+)
+Capacitor(name="SHIFT_HF", value="100nF", package="0805", voltage="16V", dielectric="X7R", P1=V5, P2=GND)
+
+# Keep both displays deselected while the ESP32-S3 boots with floating GPIOs.
+Resistor(name="CS_L_PU", value="10k", package="0805", P1=V3V3, P2=CS_L_3V3)
+Resistor(name="CS_R_PU", value="10k", package="0805", P1=V3V3, P2=CS_R_3V3)
+
+Max7219Header(name="EYE_LEFT", PIN_1=V5, PIN_2=GND, PIN_3=DIN, PIN_4=CS_L, PIN_5=CLK)
+Max7219Header(name="EYE_RIGHT", PIN_1=V5, PIN_2=GND, PIN_3=DIN, PIN_4=CS_R, PIN_5=CLK)
+Capacitor(name="EYE_LEFT_C", value="10uF", package="0805", voltage="10V", dielectric="X5R", P1=V5, P2=GND)
+Capacitor(name="EYE_RIGHT_C", value="10uF", package="0805", voltage="10V", dielectric="X5R", P1=V5, P2=GND)
