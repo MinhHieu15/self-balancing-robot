@@ -80,7 +80,7 @@ robot_fallen = False
 
 # ================= INIT MPU =================
 while not mpu_init():
-    print("MPU lỗi, đang thử lại...")
+    print("MPU6050 not responding, retrying...")
     time.sleep(1)
 
 print("MPU OK")
@@ -93,14 +93,14 @@ while True:
         dt = 0.01
     last_time = now
 
-    # ===== ĐỌC MPU (CÓ BẮT LỖI) =====
+    # ===== READ MPU6050 =====
     try:
         acc_y = read_raw(0x3D) / 16384.0
         acc_z = read_raw(0x3F) / 16384.0
         acc_angle = math.degrees(math.atan2(acc_y, acc_z))
         gyro_x = read_raw(0x43) / 131.0
     except:
-        # ❌ Lỗi I2C → dừng ngay
+        # I2C error: stop the motors immediately
         print("MPU ERROR")
         stop_motor()
         i_term = 0
@@ -111,23 +111,23 @@ while True:
     # ===== FILTER =====
     angle = alpha * (angle + gyro_x * dt) + (1 - alpha) * acc_angle
 
-    # ===== PHÁT HIỆN NGÃ =====
+    # ===== FALL DETECTION =====
     if abs(angle - target_angle) > 45:
         robot_fallen = True
 
-    # ===== NẾU ĐANG NGÃ =====
+    # ===== FALLEN: WAIT UNTIL PICKED UP =====
     if robot_fallen:
         stop_motor()
         i_term = 0
 
-        # chỉ reset khi dựng lại
+        # resume only once the robot is held upright again
         if abs(angle - target_angle) < 10:
             robot_fallen = False
 
         time.sleep(0.01)
         continue
 
-    # ===== DEAD BAND GÓC =====
+    # ===== ANGLE DEAD BAND =====
     if abs(angle - target_angle) < 0.2:
         error = 0
     else:
@@ -144,13 +144,12 @@ while True:
 
     speed_output = p_term + i_term + d_term
 
-    # giảm giật
+    # soften the response
     #speed_output *= 0.8
 
-    # giới hạn
     speed_output = max(min(speed_output, MAX_PWM), -MAX_PWM)
 
-    # ===== CHẠY =====
+    # ===== DRIVE =====
     set_motor(speed_output)
     # ===== PRINT DEBUG CHO PLOTTER =====
     print(angle)

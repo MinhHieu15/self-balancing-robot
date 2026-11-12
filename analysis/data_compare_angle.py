@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 
 # ================= CONFIGURATION =================
 SETPOINT = 5.5
-dt = 0.01  # 100Hz -> 0.01 giây mỗi mẫu
+dt = 0.01  # 100 Hz sampling
 samples_per_group = 100
 
-# ================= DATA INPUT (DỮ LIỆU CỦA BẠN) =================
+# ================= DATA INPUT (measured tilt angle, deg) =================
 data_raw = """
 5,7
 5,69
@@ -2511,11 +2511,11 @@ data_raw = """
 
 """
 
-# Xử lý chuỗi văn bản, đổi dấu ',' thành '.' và nạp vào mảng số thực
+# Values were exported with a decimal comma
 data_input = [float(val.replace(",", ".")) for val in data_raw.split()]
 num_groups = len(data_input) // samples_per_group
 
-# ================= TÍNH TOÁN ITAE (ĐÃ SỬA) =================
+# ================= ITAE PER 1-SECOND GROUP =================
 itae_values = []
 
 for g in range(num_groups):
@@ -2525,25 +2525,21 @@ for g in range(num_groups):
 
     itae_sum = 0
     for i in range(samples_per_group):
-        # t_i đại diện cho thời gian thực tế (giây) tính từ đầu mỗi nhóm
+        # time since the start of the group, in seconds
         t_i = (i + 1) * dt
         error_abs = abs(group_angles[i] - SETPOINT)
 
-        # FIX: Loại bỏ việc nhân thừa dt ở cuối để tránh làm giá trị bị giảm đi 100 lần bất thường
         itae_sum += t_i * error_abs
 
     itae_values.append(itae_sum)
 
-# Tính ITAE trung bình
 itae_avg = sum(itae_values) / len(itae_values) if itae_values else 0
 
-# ================= VẼ BIỂU ĐỒ TỐI ƯU =================
+# ================= PLOT =================
 plt.figure(figsize=(10, 6))
 
-# Định dạng màu xen kẽ xanh/đỏ cho các cột
 colors = ["#3498db" if i % 2 == 0 else "#e74c3c" for i in range(num_groups)]
 
-# Vẽ cột (Trục X đánh số từ 1 đến hết số lượng nhóm)
 bars = plt.bar(
     range(1, num_groups + 1),
     itae_values,
@@ -2552,39 +2548,34 @@ bars = plt.bar(
     width=0.4,
 )
 
-# Vẽ đường nét đứt biểu diễn giá trị ITAE trung bình
 plt.axhline(
     y=itae_avg,
     color="purple",
     linestyle="--",
     linewidth=2,
-    label=f"ITAE Trung bình = {itae_avg:.4f}",
+    label=f"Mean ITAE = {itae_avg:.4f}",
 )
 
-# Định dạng cấu trúc biểu đồ
 plt.title(
-    "Biểu đồ chỉ số ITAE theo từng nhóm mẫu",
+    "ITAE per 1-second group",
     fontsize=13,
     fontweight="bold",
 )
-plt.xlabel("Nhóm dữ liệu", fontsize=11)
-plt.ylabel("Giá trị ITAE", fontsize=11)
+plt.xlabel("Group", fontsize=11)
+plt.ylabel("ITAE", fontsize=11)
 
-# Cấu hình hiển thị trục X chuẩn (tự động theo số lượng nhóm hiện có)
 plt.xticks(range(1, num_groups + 1))
 plt.xlim(0, num_groups + 1)
-plt.ylim(0, max(itae_values) * 1.2)  # Tạo khoảng trống phía trên đường trung bình
+plt.ylim(0, max(itae_values) * 1.2)  # leave room for the legend
 
-# Bật lưới ngang và chú thích
 plt.grid(axis="y", linestyle="--", alpha=0.5)
 plt.legend(loc="upper right", fontsize=11)
 
-# In kết quả thống kê ra Terminal
-print(f"--- KẾT QUẢ THỐNG KÊ ---")
-print(f"Số lượng nhóm tính được: {num_groups}")
+print("--- ITAE results ---")
+print(f"Groups: {num_groups}")
 for idx, val in enumerate(itae_values):
-    print(f"  + Nhóm {idx+1}: ITAE = {val:.4f}")
-print(f"Giá trị ITAE trung bình tổng thể: {itae_avg:.4f}")
+    print(f"  group {idx+1}: ITAE = {val:.4f}")
+print(f"Mean ITAE: {itae_avg:.4f}")
 
 plt.tight_layout()
 plt.show()
