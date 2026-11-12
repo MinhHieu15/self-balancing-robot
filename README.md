@@ -86,4 +86,5 @@ Both controllers barely change up to 20 ms of delay. PID falls at 35 ms; LQR sti
 The angle estimate is best around α = 0.96–0.98. Lower α lets accelerometer noise through, higher α lets the gyro bias drift in.
 
 ## Credits
-SBR3 is a redesign of the SBR2.1 board by H.M. Phan (Robonyx). The mechanical assembly in `mechanical/` comes from the original SBR robot and is not my design; the SBR3 board was laid out to fit inside it.
+- **Robot model.** `mechanical/robot_assembly.step` is "Self-Balancing Robot" by [Mr Robonyx](https://grabcad.com/mr.robonyx-1), downloaded from [GrabCAD](https://grabcad.com/library/self-balancing-robot-13) (uploaded 17 February 2025, [video](https://youtu.be/UwOCjUQFoeM)). It is not my design and is included unchanged; the renders in `mechanical/` are made from it with `render_step.py`. Use of the file is subject to the [GrabCAD terms of use](https://grabcad.com/terms).
+- **SBR2.1 board.** SBR3 is a redesign of the SBR2.1 main board by H.M. Phan (Robonyx); the SBR3 board was laid out to fit inside the robot model above.
